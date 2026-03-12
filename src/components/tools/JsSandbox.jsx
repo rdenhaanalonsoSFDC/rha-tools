@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import Editor from "@monaco-editor/react";
 import { Play, Trash2, Clock } from "lucide-react";
+import { usePersistedState } from "../../hooks/use-persisted-state";
 
 const DEFAULT_CODE = `// Welcome to the JS Sandbox!
 // Write JavaScript code and click "Run" to execute it.
@@ -62,7 +63,7 @@ const serialize = (value) => {
 };
 
 export default function JsSandbox() {
-  const [code, setCode] = useState(DEFAULT_CODE);
+  const [code, setCode] = usePersistedState("js-sandbox-code", DEFAULT_CODE);
   const [logs, setLogs] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
   const consoleEndRef = useRef(null);

@@ -1,29 +1,13 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { diffWords, diffChars, diffLines } from "diff";
 import { ArrowRightLeft, Trash2, FileUp, Wand2 } from "lucide-react";
+import { usePersistedState } from "../../hooks/use-persisted-state";
 
 const DIFF_FNS = {
   word: (a, b) => diffWords(a, b, { ignoreWhitespace: false }),
   char: diffChars,
   line: diffLines,
 };
-
-/**
- * Persisted state hook backed by localStorage.
- * @param {string} key
- * @param {string} defaultValue
- */
-function usePersistedState(key, defaultValue) {
-  const [value, setValue] = useState(() => localStorage.getItem(key) ?? defaultValue);
-  const set = useCallback(
-    (v) => {
-      setValue(v);
-      localStorage.setItem(key, v);
-    },
-    [key],
-  );
-  return [value, set];
-}
 
 /**
  * Splits a flat diff-parts array into lines (arrays of parts per visual line),
@@ -80,10 +64,10 @@ function isJsonString(str) {
 }
 
 export default function DiffViewer() {
-  const [textA, setTextA] = usePersistedState("rha-tools-diffA", "");
-  const [textB, setTextB] = usePersistedState("rha-tools-diffB", "");
-  const [diffMode, setDiffMode] = usePersistedState("rha-tools-diffMode", "word");
-  const [lineMode, setLineMode] = usePersistedState("rha-tools-lineMode", "all");
+  const [textA, setTextA] = usePersistedState("diff-textA", "");
+  const [textB, setTextB] = usePersistedState("diff-textB", "");
+  const [diffMode, setDiffMode] = usePersistedState("diff-mode", "word");
+  const [lineMode, setLineMode] = usePersistedState("diff-lineMode", "all");
   const [isJson, setIsJson] = useState(false);
 
   const fileRefA = useRef(null);

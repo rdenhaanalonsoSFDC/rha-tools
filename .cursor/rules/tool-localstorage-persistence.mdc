@@ -1,0 +1,43 @@
+---
+description: localStorage persistence convention for tool components
+globs: src/components/tools/*.jsx
+alwaysApply: false
+---
+
+# Tool State Persistence
+
+Every tool component must persist user-editable content (text inputs, editor contents, selected options) to localStorage so state survives page reloads.
+
+## How
+
+Use the shared `usePersistedState` hook instead of `useState` for any value the user can edit:
+
+```jsx
+import { usePersistedState } from "../../hooks/use-persisted-state";
+
+const [code, setCode] = usePersistedState("my-tool-code", DEFAULT_CODE);
+const [mode, setMode] = usePersistedState("my-tool-mode", "default");
+```
+
+## Key naming
+
+- Keys are automatically prefixed with `rha-tools-` by the hook.
+- Use the pattern `<tool-slug>-<field>`, e.g. `"diff-textA"`, `"js-sandbox-code"`, `"openapi-spec"`.
+
+## What to persist
+
+- Editor / textarea contents
+- Dropdown or toggle selections that affect behaviour (diff mode, selected schema, etc.)
+
+## What NOT to persist
+
+- Transient UI state: validation results, loading flags, error lists, console logs.
+- Derived state that can be recomputed from persisted values.
+
+## Existing examples
+
+| Tool | Keys |
+|------|------|
+| DiffViewer | `diff-textA`, `diff-textB`, `diff-mode`, `diff-lineMode` |
+| JsSandbox | `js-sandbox-code` |
+| OpenApiValidator | `openapi-spec`, `openapi-payload`, `openapi-schema` |
