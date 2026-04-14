@@ -91,6 +91,7 @@ export default function OpenApiValidator() {
   const [payloadValid, setPayloadValid] = useState(null);
   const [availableSchemas, setAvailableSchemas] = useState([]);
   const [isValidating, setIsValidating] = useState(false);
+  const [detectedVersion, setDetectedVersion] = useState(null);
 
   const handleEditorMount = (_editor, monaco) => {
     monaco.editor.defineTheme("rha-tools-dark", monacoThemeConfig);
@@ -102,6 +103,7 @@ export default function OpenApiValidator() {
     setSpecErrors([]);
     setSpecValid(null);
     setAvailableSchemas([]);
+    setDetectedVersion(null);
 
     const doc = YAML.parseDocument(specYaml);
 
@@ -109,19 +111,45 @@ export default function OpenApiValidator() {
       setSpecErrors(doc.errors.map((e) => ({
         message: `YAML Syntax Error: ${e.message}`,
         line: e.linePos?.[0]?.line ?? null,
+        severity: "error",
       })));
       setSpecValid(false);
       setIsValidating(false);
       return;
     }
 
+    const yamlWarnings = doc.warnings.map((w) => ({
+      message: `YAML Warning: ${w.message}`,
+      line: w.linePos?.[0]?.line ?? null,
+      severity: "warning",
+    }));
+
     const parsed = doc.toJS();
+
+    const version = parseOpenApiVersion(parsed);
+    setDetectedVersion(version);
+
+    if (!version) {
+      const raw = parsed?.openapi;
+      setSpecErrors([{
+        message: raw
+          ? `Unsupported OpenAPI version "${raw}". Only 3.0.x and 3.1.x are supported.`
+          : 'Missing "openapi" field. The document must be a valid OpenAPI 3.0.x or 3.1.x specification.',
+        severity: "error",
+        line: raw ? resolveErrorLine(specYaml, doc, "openapi") : null,
+      }]);
+      setSpecValid(false);
+      setIsValidating(false);
+      return;
+    }
 
     try {
       await SwaggerParser.validate(JSON.parse(JSON.stringify(parsed)));
 
       setSpecValid(true);
-      setSpecErrors([]);
+
+      const lintWarnings = lintOpenApiSpec(parsed, specYaml, doc, version.family);
+      setSpecErrors([...yamlWarnings, ...lintWarnings]);
 
       const schemas = parsed?.components?.schemas;
       if (schemas) {
@@ -135,9 +163,10 @@ export default function OpenApiValidator() {
       setSpecValid(false);
       const errors = extractValidationErrors(error).map((err) => ({
         ...err,
+        severity: "error",
         line: err.line ?? resolveErrorLine(specYaml, doc, err.path),
       }));
-      setSpecErrors(errors);
+      setSpecErrors([...yamlWarnings, ...errors]);
     } finally {
       setIsValidating(false);
     }
@@ -183,6 +212,9 @@ export default function OpenApiValidator() {
       }
 
       let resolvedSchema = resolveRefs(schemaObj, parsed);
+      if (detectedVersion?.family === "3.0") {
+        resolvedSchema = normalizeNullable(resolvedSchema);
+      }
       if (strictMode === "true") {
         resolvedSchema = applyStrictMode(resolvedSchema);
       }
@@ -211,7 +243,7 @@ export default function OpenApiValidator() {
       setPayloadValid(false);
       setPayloadErrors([{ message: error.message }]);
     }
-  }, [payload, specYaml, selectedSchema, specValid, strictMode]);
+  }, [payload, specYaml, selectedSchema, specValid, strictMode, detectedVersion]);
 
   return (
     <div className="flex h-full flex-col">
@@ -269,9 +301,16 @@ export default function OpenApiValidator() {
         {/* YAML Spec Editor */}
         <div className="flex min-h-0 flex-col border-r border-slate-800">
           <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2">
-            <span className="text-xs font-medium text-slate-500 uppercase">
-              OpenAPI Spec (YAML)
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-500 uppercase">
+                OpenAPI Spec (YAML)
+              </span>
+              {detectedVersion && (
+                <span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-xs text-indigo-400">
+                  v{detectedVersion.exact}
+                </span>
+              )}
+            </div>
             <StatusBadge valid={specValid} />
           </div>
           <div className="min-h-0 flex-1">
@@ -340,34 +379,104 @@ function StatusBadge({ valid }) {
   );
 }
 
-function ErrorPanel({ errors, title }) {
+function ErrorPanel({ errors }) {
   if (!errors.length) return null;
 
   return (
     <div className="max-h-40 overflow-y-auto border-t border-slate-800 bg-slate-900/50 p-3">
       <div className="space-y-1.5">
-        {errors.map((error, idx) => (
-          <div
-            key={idx}
-            className="flex items-start gap-2 rounded bg-red-500/5 px-2 py-1.5 text-xs"
-          >
-            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-red-400" />
-            <div>
-              {error.line != null && (
-                <span className="mr-2 rounded bg-slate-800 px-1.5 py-0.5 font-mono text-indigo-400">
-                  Ln {error.line}
+        {errors.map((error, idx) => {
+          const isWarning = error.severity === "warning";
+          return (
+            <div
+              key={idx}
+              className={`flex items-start gap-2 rounded px-2 py-1.5 text-xs ${
+                isWarning ? "bg-amber-500/5" : "bg-red-500/5"
+              }`}
+            >
+              <AlertTriangle
+                className={`mt-0.5 h-3 w-3 shrink-0 ${
+                  isWarning ? "text-amber-400" : "text-red-400"
+                }`}
+              />
+              <div>
+                {error.line != null && (
+                  <span className="mr-2 rounded bg-slate-800 px-1.5 py-0.5 font-mono text-indigo-400">
+                    Ln {error.line}
+                  </span>
+                )}
+                {error.path && (
+                  <span className="mr-2 font-mono text-slate-500">{error.path}</span>
+                )}
+                <span className={isWarning ? "text-amber-300" : "text-red-300"}>
+                  {error.message}
                 </span>
-              )}
-              {error.path && (
-                <span className="mr-2 font-mono text-slate-500">{error.path}</span>
-              )}
-              <span className="text-red-300">{error.message}</span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
+}
+
+/**
+ * Runs semantic lint checks on a parsed OpenAPI spec and returns warnings.
+ * Detects patterns that are technically parseable but semantically wrong or misleading.
+ */
+function lintOpenApiSpec(parsed, yamlSource, doc, versionFamily) {
+  const warnings = [];
+
+  walkObject(parsed, [], (value, path) => {
+    if (versionFamily === "3.0" && value?.$ref && typeof value.$ref === "string") {
+      const siblings = Object.keys(value).filter((k) => k !== "$ref");
+      if (siblings.length > 0) {
+        const line = resolveErrorLine(yamlSource, doc, path.join("."));
+        warnings.push({
+          message: `Properties alongside $ref are ignored in OpenAPI 3.0: ${siblings.join(", ")}`,
+          path: path.join("."),
+          line,
+          severity: "warning",
+        });
+      }
+    }
+
+    if (value?.type === "object" && value?.properties) {
+      const required = value.required;
+      if (Array.isArray(required)) {
+        const propNames = Object.keys(value.properties);
+        for (const name of required) {
+          if (!propNames.includes(name)) {
+            const reqPath = [...path, "required"];
+            const line = resolveErrorLine(yamlSource, doc, reqPath.join("."));
+            warnings.push({
+              message: `Required property "${name}" is not defined in properties`,
+              path: path.join("."),
+              line,
+              severity: "warning",
+            });
+          }
+        }
+      }
+    }
+  });
+
+  return warnings;
+}
+
+/**
+ * Recursively walks a plain JS object, invoking the callback with the value and its path.
+ */
+function walkObject(obj, path, callback) {
+  if (!obj || typeof obj !== "object") return;
+
+  callback(obj, path);
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (value && typeof value === "object") {
+      walkObject(value, [...path, key], callback);
+    }
+  }
 }
 
 /**
@@ -532,6 +641,50 @@ function applyStrictMode(schema) {
   if (result.anyOf) {
     result.anyOf = result.anyOf.map(applyStrictMode);
   }
+
+  return result;
+}
+
+/**
+ * Parses the `openapi` field and returns version info if it's a supported family (3.0.x or 3.1.x).
+ * @returns {{ family: "3.0"|"3.1", exact: string } | null}
+ */
+function parseOpenApiVersion(parsed) {
+  const version = parsed?.openapi;
+  if (!version) return null;
+
+  const str = String(version);
+  if (str.startsWith("3.0")) return { family: "3.0", exact: str };
+  if (str.startsWith("3.1")) return { family: "3.1", exact: str };
+  return null;
+}
+
+/**
+ * Transforms OpenAPI 3.0.x `nullable: true` into JSON Schema `type: [original, "null"]`
+ * so AJV can validate nullable fields correctly.
+ */
+function normalizeNullable(schema) {
+  if (!schema || typeof schema !== "object") return schema;
+
+  const result = { ...schema };
+
+  if (result.nullable === true && result.type) {
+    const types = Array.isArray(result.type) ? result.type : [result.type];
+    if (!types.includes("null")) {
+      result.type = [...types, "null"];
+    }
+    delete result.nullable;
+  }
+
+  if (result.properties) {
+    result.properties = Object.fromEntries(
+      Object.entries(result.properties).map(([k, v]) => [k, normalizeNullable(v)]),
+    );
+  }
+  if (result.items) result.items = normalizeNullable(result.items);
+  if (result.allOf) result.allOf = result.allOf.map(normalizeNullable);
+  if (result.oneOf) result.oneOf = result.oneOf.map(normalizeNullable);
+  if (result.anyOf) result.anyOf = result.anyOf.map(normalizeNullable);
 
   return result;
 }

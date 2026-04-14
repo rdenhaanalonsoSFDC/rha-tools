@@ -54,6 +54,9 @@ npm run tauri dev
 # Build de produccion
 npm run tauri build
 
+# Clean build
+cd src-tauri && cargo clean & cd ..
+
 
 
 openapi-payloadvalidator/

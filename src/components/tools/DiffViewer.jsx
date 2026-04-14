@@ -1,7 +1,8 @@
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { diffWords, diffChars, diffLines } from "diff";
 import { ArrowRightLeft, Trash2, FileUp, Wand2 } from "lucide-react";
 import { usePersistedState } from "../../hooks/use-persisted-state";
+import { CONTENT_TYPES, formatContent, detectContentType } from "./diff-formatters";
 
 const DIFF_FNS = {
   word: (a, b) => diffWords(a, b, { ignoreWhitespace: false }),
@@ -14,53 +15,24 @@ const DIFF_FNS = {
  * matching the difftext.com X0 algorithm.
  */
 function splitIntoLines(parts) {
-  let lines = [];
+  const lines = [];
   let currentLine = [];
 
   parts.forEach((part) => {
     const segments = part.value.split("\n");
     segments.forEach((segment, idx) => {
-      const isNewlineBoundary = segment === "" && idx < segments.length - 1;
-      const hasChange = part.added || part.removed;
-
-      if (isNewlineBoundary) {
-        if (!hasChange) {
-          lines.push(currentLine);
-          currentLine = [];
-          return;
-        }
-        if (currentLine.length === 0) {
-          lines.push([{ ...part, value: segment }]);
-          return;
-        }
+      if (idx > 0) {
         lines.push(currentLine);
-        currentLine = [{ ...part, value: segment }];
-        return;
+        currentLine = [];
       }
-      currentLine.push({ ...part, value: segment });
+      if (segment !== "") {
+        currentLine.push({ ...part, value: segment });
+      }
     });
   });
 
   if (currentLine.length) lines.push(currentLine);
-
-  lines = lines.map((line) =>
-    line.filter((p, i) => {
-      const isNewline = p.value === "\n";
-      const next = line[i + 1];
-      return !(isNewline && (next?.added || next?.removed));
-    }),
-  );
-
   return lines;
-}
-
-function isJsonString(str) {
-  try {
-    const parsed = JSON.parse(str);
-    return typeof parsed === "object" && parsed !== null;
-  } catch {
-    return false;
-  }
 }
 
 export default function DiffViewer() {
@@ -68,21 +40,31 @@ export default function DiffViewer() {
   const [textB, setTextB] = usePersistedState("diff-textB", "");
   const [diffMode, setDiffMode] = usePersistedState("diff-mode", "word");
   const [lineMode, setLineMode] = usePersistedState("diff-lineMode", "all");
-  const [isJson, setIsJson] = useState(false);
+  const [contentTypeA, setContentTypeA] = usePersistedState("diff-typeA", "");
+  const [contentTypeB, setContentTypeB] = usePersistedState("diff-typeB", "");
 
   const fileRefA = useRef(null);
   const fileRefB = useRef(null);
 
-  useEffect(() => {
-    setIsJson(isJsonString(textA) && isJsonString(textB));
-  }, [textA, textB]);
+  const autoDetectAndSet = useCallback(
+    (typeSetter) => (text) => {
+      const detected = detectContentType(text);
+      if (detected) typeSetter(detected);
+    },
+    [],
+  );
 
   const handleFileLoad = useCallback(
-    (setter) => (e) => {
+    (textSetter, typeSetter) => (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (ev) => setter(ev.target.result);
+      reader.onload = (ev) => {
+        const text = ev.target.result;
+        textSetter(text);
+        const detected = detectContentType(text);
+        if (detected) typeSetter(detected);
+      };
       reader.readAsText(file);
       e.target.value = "";
     },
@@ -90,50 +72,47 @@ export default function DiffViewer() {
   );
 
   const handleDrop = useCallback(
-    (setter) => (e) => {
+    (textSetter, typeSetter) => (e) => {
       e.preventDefault();
       const file = e.dataTransfer?.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (ev) => setter(ev.target.result);
+      reader.onload = (ev) => {
+        const text = ev.target.result;
+        textSetter(text);
+        const detected = detectContentType(text);
+        if (detected) typeSetter(detected);
+      };
       reader.readAsText(file);
     },
     [],
   );
 
   const handleSwap = useCallback(() => {
-    const a = textA;
+    const tmpText = textA;
+    const tmpType = contentTypeA;
     setTextA(textB);
-    setTextB(a);
-  }, [textA, textB, setTextA, setTextB]);
+    setContentTypeA(contentTypeB);
+    setTextB(tmpText);
+    setContentTypeB(tmpType);
+  }, [textA, textB, contentTypeA, contentTypeB, setTextA, setTextB, setContentTypeA, setContentTypeB]);
 
   const handleClear = useCallback(() => {
     setTextA("");
     setTextB("");
-  }, [setTextA, setTextB]);
+    setContentTypeA("");
+    setContentTypeB("");
+  }, [setTextA, setTextB, setContentTypeA, setContentTypeB]);
 
-  const handleFormatJson = useCallback(() => {
-    try {
-      const a = JSON.parse(textA);
-      const b = JSON.parse(textB);
+  const handleFormatA = useCallback(() => {
+    if (!contentTypeA || !textA.trim()) return;
+    setTextA(formatContent(textA, contentTypeA));
+  }, [textA, contentTypeA, setTextA]);
 
-      const sortKeys = (obj) => {
-        if (Array.isArray(obj)) return obj;
-        const sorted = {};
-        Object.keys(obj)
-          .sort()
-          .forEach((k) => {
-            sorted[k] = obj[k];
-          });
-        return sorted;
-      };
-
-      setTextA(JSON.stringify(sortKeys(a), null, 2));
-      setTextB(JSON.stringify(sortKeys(b), null, 2));
-    } catch {
-      /* ignore */
-    }
-  }, [textA, textB, setTextA, setTextB]);
+  const handleFormatB = useCallback(() => {
+    if (!contentTypeB || !textB.trim()) return;
+    setTextB(formatContent(textB, contentTypeB));
+  }, [textB, contentTypeB, setTextB]);
 
   const diffParts = useMemo(() => {
     if (!textA && !textB) return [];
@@ -151,27 +130,22 @@ export default function DiffViewer() {
           value={textA}
           onChange={setTextA}
           fileRef={fileRefA}
-          onFileLoad={handleFileLoad(setTextA)}
-          onDrop={handleDrop(setTextA)}
+          onFileLoad={handleFileLoad(setTextA, setContentTypeA)}
+          onDrop={handleDrop(setTextA, setContentTypeA)}
+          contentType={contentTypeA}
+          onContentTypeChange={setContentTypeA}
+          onFormat={handleFormatA}
+          onAutoDetect={autoDetectAndSet(setContentTypeA)}
         />
 
         {/* Icon Pane */}
-        <div className="mt-[35px] mb-[23px] flex flex-col justify-between">
-          <div className="flex flex-col items-center gap-[5px]">
-            <IconButton title="Swap inputs" onClick={handleSwap}>
-              <ArrowRightLeft strokeWidth={1.5} size={24} />
-            </IconButton>
-            <IconButton title="Clear text" onClick={handleClear}>
-              <Trash2 strokeWidth={1.5} size={24} />
-            </IconButton>
-          </div>
-          <div className="flex flex-col items-center gap-[5px]">
-            {isJson && (
-              <IconButton title="Format JSON" onClick={handleFormatJson}>
-                <Wand2 strokeWidth={1.5} size={24} />
-              </IconButton>
-            )}
-          </div>
+        <div className="mt-[35px] mb-[23px] flex flex-col items-center gap-[5px]">
+          <IconButton title="Swap inputs" onClick={handleSwap}>
+            <ArrowRightLeft strokeWidth={1.5} size={24} />
+          </IconButton>
+          <IconButton title="Clear text" onClick={handleClear}>
+            <Trash2 strokeWidth={1.5} size={24} />
+          </IconButton>
         </div>
 
         <TextPanel
@@ -179,8 +153,12 @@ export default function DiffViewer() {
           value={textB}
           onChange={setTextB}
           fileRef={fileRefB}
-          onFileLoad={handleFileLoad(setTextB)}
-          onDrop={handleDrop(setTextB)}
+          onFileLoad={handleFileLoad(setTextB, setContentTypeB)}
+          onDrop={handleDrop(setTextB, setContentTypeB)}
+          contentType={contentTypeB}
+          onContentTypeChange={setContentTypeB}
+          onFormat={handleFormatB}
+          onAutoDetect={autoDetectAndSet(setContentTypeB)}
         />
       </div>
 
@@ -224,8 +202,9 @@ export default function DiffViewer() {
   );
 }
 
-function TextPanel({ label, value, onChange, fileRef, onFileLoad, onDrop }) {
+function TextPanel({ label, value, onChange, fileRef, onFileLoad, onDrop, contentType, onContentTypeChange, onFormat, onAutoDetect }) {
   const [dragActive, setDragActive] = useState(false);
+  const isPasting = useRef(false);
 
   return (
     <div className="flex flex-1 flex-col gap-[5px]">
@@ -240,10 +219,35 @@ function TextPanel({ label, value, onChange, fileRef, onFileLoad, onDrop }) {
           className="hidden"
           onChange={onFileLoad}
         />
+        <select
+          value={contentType}
+          onChange={(e) => onContentTypeChange(e.target.value)}
+          className="ml-auto h-[26px] cursor-pointer border border-[hsl(0,0%,20%)] bg-transparent px-1 text-xs text-[hsl(0,0%,60%)] outline-none transition-colors hover:text-white focus:border-[hsl(0,0%,40%)]"
+          style={{ fontFamily: "inherit" }}
+        >
+          {CONTENT_TYPES.map(({ value: v, label: l }) => (
+            <option key={v} value={v} style={{ backgroundColor: "#1a1a1a" }}>
+              {l}
+            </option>
+          ))}
+        </select>
+        <IconButton title="Format / Beautify" onClick={onFormat}>
+          <Wand2 strokeWidth={1.5} size={20} style={{ opacity: contentType ? 1 : 0.3 }} />
+        </IconButton>
       </div>
       <textarea
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onPaste={() => {
+          isPasting.current = true;
+        }}
+        onChange={(e) => {
+          const newValue = e.target.value;
+          onChange(newValue);
+          if (isPasting.current) {
+            isPasting.current = false;
+            onAutoDetect?.(newValue);
+          }
+        }}
         onDragOver={(e) => {
           e.preventDefault();
           setDragActive(true);
