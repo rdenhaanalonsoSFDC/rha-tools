@@ -1,10 +1,5 @@
-import { GitCompareArrows, Terminal, FileSearch, Wrench } from "lucide-react";
-
-const NAV_ITEMS = [
-  { id: "diff", label: "Diff Viewer", icon: GitCompareArrows },
-  { id: "sandbox", label: "JS Sandbox", icon: Terminal },
-  { id: "openapi", label: "OpenAPI Validator", icon: FileSearch },
-];
+import { Wrench } from "lucide-react";
+import { TOOLS } from "../../tools/registry";
 
 export default function Sidebar({ activeTool, onSelectTool }) {
   return (
@@ -15,7 +10,7 @@ export default function Sidebar({ activeTool, onSelectTool }) {
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+        {TOOLS.map(({ id, label, icon: Icon }) => {
           const isActive = activeTool === id;
           return (
             <button

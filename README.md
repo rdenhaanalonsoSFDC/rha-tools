@@ -13,21 +13,24 @@ react, react-dom	Framework UI
 tailwindcss, @tailwindcss/vite	Estilos (v4)
 lucide-react	Iconos
 @monaco-editor/react	Editor de código (JS Sandbox + OpenAPI)
-react-diff-viewer-continued	Vista de diferencias
+diff	Algoritmos de diferencias (word/char/line)
+js-beautify, sql-formatter, yaml	Formateo de contenido en Diff Viewer
 @apidevtools/swagger-parser	Validación OpenAPI 3.0/3.1
 ajv, ajv-formats	Validación JSON Schema
 yaml	Parsing YAML
 Las 3 herramientas
 1. Diff Viewer
-Dos paneles de texto (Original vs Modificado)
-Toggle entre modos: Line by Line, Word by Word, Character, Sentence
-Vista Split o Unified
-Botones para copiar y limpiar
-Resaltado de diferencias con tema oscuro personalizado
+Dos paneles de texto (Version A vs Version B)
+Toggle entre modos: word, char, line
+Mostrar todas las líneas o solo las cambiadas
+Auto-detección de tipo de contenido al pegar
+Botones para formatear/beautify y limpiar
+Soporte para carga de archivos y drag-and-drop
 2. JS Sandbox
 Editor Monaco con sintaxis highlighting para JavaScript
-Boton Run que ejecuta via new Function() con console interceptado
-Panel de consola inferior con timestamps estilo Chrome DevTools
+Tab "Script Run": ejecuta código en un iframe aislado con console interceptado
+Tab "Console": REPL persistente con historial (igual que Chrome DevTools)
+Carga de librerías externas via CDN
 Soporta console.log, .warn, .error, .info
 Separadores visuales entre ejecuciones
 3. OpenAPI Validator
@@ -37,7 +40,8 @@ Validacion contra estandar OpenAPI 3.0/3.1 via swagger-parser
 Selector de schemas disponibles en el spec
 Editor JSON para payload
 Validacion del payload contra el schema seleccionado via ajv
-Panel de errores con mensajes claros y rutas
+Modo estricto (rechaza propiedades adicionales)
+Panel de errores con mensajes claros, rutas y números de línea
 Backend Tauri (Rust)
 Comando greet (ejemplo de comunicacion frontend-backend)
 Comando format_json (formateo de JSON desde Rust)
@@ -59,7 +63,21 @@ cd src-tauri && cargo clean & cd ..
 
 
 
-openapi-payloadvalidator/
+# Adding a new tool
+
+1. Create `src/tools/my-tool/index.jsx` with a default export (and any tool-specific helpers alongside it).
+2. Use `usePersistedState` instead of `useState` for all user-editable state. Key pattern: `<tool-slug>-<field>` (e.g. `my-tool-input`).
+3. Add one entry to `src/tools/registry.js`:
+   ```js
+   { id: "my-tool", label: "My Tool", icon: SomeIcon, component: MyTool }
+   ```
+   Import the icon from `lucide-react` and the component from `./my-tool`.
+
+That's it — `App.jsx` and `Sidebar.jsx` do not need to be touched.
+
+---
+
+rha-tools/
 ├── index.html
 ├── package.json
 ├── vite.config.js
@@ -67,13 +85,20 @@ openapi-payloadvalidator/
 │   ├── main.jsx
 │   ├── index.css                          # Tailwind v4 + tema oscuro
 │   ├── App.jsx                            # Router principal
-│   └── components/
-│       ├── layout/
-│       │   └── Sidebar.jsx                # Navegación lateral
-│       └── tools/
-│           ├── DiffViewer.jsx             # Comparador de texto
-│           ├── JsSandbox.jsx              # Consola JavaScript
-│           └── OpenApiValidator.jsx       # Validador OpenAPI
+│   ├── components/
+│   │   └── layout/
+│   │       └── Sidebar.jsx                # Navegación lateral
+│   ├── hooks/
+│   │   └── use-persisted-state.js         # Hook compartido para localStorage
+│   └── tools/
+│       ├── registry.js                    # Registro central de herramientas
+│       ├── diff-viewer/
+│       │   ├── index.jsx                  # Comparador de texto
+│       │   └── diff-formatters.js         # Utilidades de formateo
+│       ├── js-sandbox/
+│       │   └── index.jsx                  # Consola JavaScript
+│       └── openapi-validator/
+│           └── index.jsx                  # Validador OpenAPI
 └── src-tauri/
     ├── Cargo.toml
     ├── tauri.conf.json

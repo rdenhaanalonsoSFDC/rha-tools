@@ -1,19 +1,11 @@
 import { useState } from "react";
 import Sidebar from "./components/layout/Sidebar";
-import DiffViewer from "./components/tools/DiffViewer";
-import JsSandbox from "./components/tools/JsSandbox";
-import OpenApiValidator from "./components/tools/OpenApiValidator";
-
-const TOOLS = {
-  diff: { component: DiffViewer, label: "Diff Viewer" },
-  sandbox: { component: JsSandbox, label: "JS Sandbox" },
-  openapi: { component: OpenApiValidator, label: "OpenAPI Validator" },
-};
+import { TOOLS } from "./tools/registry";
 
 export default function App() {
-  const [activeTool, setActiveTool] = useState("diff");
+  const [activeTool, setActiveTool] = useState(TOOLS[0].id);
 
-  const ActiveComponent = TOOLS[activeTool].component;
+  const ActiveComponent = TOOLS.find((t) => t.id === activeTool).component;
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-300">
