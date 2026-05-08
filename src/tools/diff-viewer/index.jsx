@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import { diffWords, diffChars, diffLines } from "diff";
 import { ArrowRightLeft, Trash2, FileUp, Wand2 } from "lucide-react";
-import { usePersistedState } from "../../hooks/use-persisted-state";
+import { useFileState } from "../../hooks/use-file-state";
+import { useConfigState } from "../../hooks/use-config-state";
 import { CONTENT_TYPES, formatContent, detectContentType } from "./diff-formatters";
 
 const DIFF_FNS = {
@@ -35,13 +36,27 @@ function splitIntoLines(parts) {
   return lines;
 }
 
+const SLUG = "diff-viewer";
+const CONFIG_DEFAULTS = { mode: "word", lineMode: "all", typeA: "", typeB: "", nameA: "", nameB: "" };
+
 export default function DiffViewer() {
-  const [textA, setTextA] = usePersistedState("diff-textA", "");
-  const [textB, setTextB] = usePersistedState("diff-textB", "");
-  const [diffMode, setDiffMode] = usePersistedState("diff-mode", "word");
-  const [lineMode, setLineMode] = usePersistedState("diff-lineMode", "all");
-  const [contentTypeA, setContentTypeA] = usePersistedState("diff-typeA", "");
-  const [contentTypeB, setContentTypeB] = usePersistedState("diff-typeB", "");
+  const [textA, setTextA] = useFileState(SLUG, "version-a.txt", "");
+  const [textB, setTextB] = useFileState(SLUG, "version-b.txt", "");
+  const [getConfig, setConfig] = useConfigState(SLUG, CONFIG_DEFAULTS);
+
+  const diffMode = getConfig("mode");
+  const lineMode = getConfig("lineMode");
+  const contentTypeA = getConfig("typeA");
+  const contentTypeB = getConfig("typeB");
+  const nameA = getConfig("nameA");
+  const nameB = getConfig("nameB");
+
+  const setDiffMode = useCallback((v) => setConfig("mode", v), [setConfig]);
+  const setLineMode = useCallback((v) => setConfig("lineMode", v), [setConfig]);
+  const setContentTypeA = useCallback((v) => setConfig("typeA", v), [setConfig]);
+  const setContentTypeB = useCallback((v) => setConfig("typeB", v), [setConfig]);
+  const setNameA = useCallback((v) => setConfig("nameA", v), [setConfig]);
+  const setNameB = useCallback((v) => setConfig("nameB", v), [setConfig]);
 
   const fileRefA = useRef(null);
   const fileRefB = useRef(null);
@@ -55,7 +70,7 @@ export default function DiffViewer() {
   );
 
   const handleFileLoad = useCallback(
-    (textSetter, typeSetter) => (e) => {
+    (textSetter, typeSetter, nameSetter) => (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
@@ -64,6 +79,7 @@ export default function DiffViewer() {
         textSetter(text);
         const detected = detectContentType(text);
         if (detected) typeSetter(detected);
+        nameSetter(file.name);
       };
       reader.readAsText(file);
       e.target.value = "";
@@ -72,7 +88,7 @@ export default function DiffViewer() {
   );
 
   const handleDrop = useCallback(
-    (textSetter, typeSetter) => (e) => {
+    (textSetter, typeSetter, nameSetter) => (e) => {
       e.preventDefault();
       const file = e.dataTransfer?.files?.[0];
       if (!file) return;
@@ -82,6 +98,7 @@ export default function DiffViewer() {
         textSetter(text);
         const detected = detectContentType(text);
         if (detected) typeSetter(detected);
+        nameSetter(file.name);
       };
       reader.readAsText(file);
     },
@@ -91,18 +108,23 @@ export default function DiffViewer() {
   const handleSwap = useCallback(() => {
     const tmpText = textA;
     const tmpType = contentTypeA;
+    const tmpName = nameA;
     setTextA(textB);
     setContentTypeA(contentTypeB);
+    setNameA(nameB);
     setTextB(tmpText);
     setContentTypeB(tmpType);
-  }, [textA, textB, contentTypeA, contentTypeB, setTextA, setTextB, setContentTypeA, setContentTypeB]);
+    setNameB(tmpName);
+  }, [textA, textB, contentTypeA, contentTypeB, nameA, nameB, setTextA, setTextB, setContentTypeA, setContentTypeB, setNameA, setNameB]);
 
   const handleClear = useCallback(() => {
     setTextA("");
     setTextB("");
     setContentTypeA("");
     setContentTypeB("");
-  }, [setTextA, setTextB, setContentTypeA, setContentTypeB]);
+    setNameA("");
+    setNameB("");
+  }, [setTextA, setTextB, setContentTypeA, setContentTypeB, setNameA, setNameB]);
 
   const handleFormatA = useCallback(() => {
     if (!contentTypeA || !textA.trim()) return;
@@ -130,12 +152,14 @@ export default function DiffViewer() {
           value={textA}
           onChange={setTextA}
           fileRef={fileRefA}
-          onFileLoad={handleFileLoad(setTextA, setContentTypeA)}
-          onDrop={handleDrop(setTextA, setContentTypeA)}
+          onFileLoad={handleFileLoad(setTextA, setContentTypeA, setNameA)}
+          onDrop={handleDrop(setTextA, setContentTypeA, setNameA)}
           contentType={contentTypeA}
           onContentTypeChange={setContentTypeA}
           onFormat={handleFormatA}
           onAutoDetect={autoDetectAndSet(setContentTypeA)}
+          name={nameA}
+          onNameChange={setNameA}
         />
 
         {/* Icon Pane */}
@@ -153,12 +177,14 @@ export default function DiffViewer() {
           value={textB}
           onChange={setTextB}
           fileRef={fileRefB}
-          onFileLoad={handleFileLoad(setTextB, setContentTypeB)}
-          onDrop={handleDrop(setTextB, setContentTypeB)}
+          onFileLoad={handleFileLoad(setTextB, setContentTypeB, setNameB)}
+          onDrop={handleDrop(setTextB, setContentTypeB, setNameB)}
           contentType={contentTypeB}
           onContentTypeChange={setContentTypeB}
           onFormat={handleFormatB}
           onAutoDetect={autoDetectAndSet(setContentTypeB)}
+          name={nameB}
+          onNameChange={setNameB}
         />
       </div>
 
@@ -202,7 +228,7 @@ export default function DiffViewer() {
   );
 }
 
-function TextPanel({ label, value, onChange, fileRef, onFileLoad, onDrop, contentType, onContentTypeChange, onFormat, onAutoDetect }) {
+function TextPanel({ label, value, onChange, fileRef, onFileLoad, onDrop, contentType, onContentTypeChange, onFormat, onAutoDetect, name, onNameChange }) {
   const [dragActive, setDragActive] = useState(false);
   const isPasting = useRef(false);
 
@@ -218,6 +244,15 @@ function TextPanel({ label, value, onChange, fileRef, onFileLoad, onDrop, conten
           type="file"
           className="hidden"
           onChange={onFileLoad}
+        />
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => onNameChange(e.target.value)}
+          placeholder="label…"
+          className="h-[26px] min-w-0 flex-1 border border-[hsl(0,0%,20%)] bg-transparent px-2 text-xs text-[hsl(0,0%,60%)] outline-none placeholder:text-[hsl(0,0%,30%)] transition-colors hover:text-white focus:border-[hsl(0,0%,40%)] focus:text-white"
+          style={{ fontFamily: "inherit" }}
+          spellCheck={false}
         />
         <select
           value={contentType}

@@ -12,7 +12,8 @@ import {
   Code2,
   RotateCw,
 } from "lucide-react";
-import { usePersistedState } from "../../hooks/use-persisted-state";
+import { useFileState } from "../../hooks/use-file-state";
+import { useConfigState } from "../../hooks/use-config-state";
 
 const DEFAULT_CODE = `// Welcome to the JS Sandbox!
 // Write JavaScript code and click "Run" to execute it.
@@ -101,13 +102,15 @@ const inspectRepl = (value) => {
   }
 };
 
+const SLUG = "js-sandbox";
+const CONFIG_DEFAULTS = { libs: [] };
+
 export default function JsSandbox() {
-  const [code, setCode] = usePersistedState("js-sandbox-code", DEFAULT_CODE);
-  const [libsJson, setLibsJson] = usePersistedState("js-sandbox-libs", "[]");
-  const libs = useMemo(() => {
-    try { return JSON.parse(libsJson); } catch { return []; }
-  }, [libsJson]);
-  const setLibs = useCallback((v) => setLibsJson(JSON.stringify(v)), [setLibsJson]);
+  const [code, setCode] = useFileState(SLUG, "script.js", DEFAULT_CODE);
+  const [getConfig, setConfig] = useConfigState(SLUG, CONFIG_DEFAULTS);
+
+  const libs = getConfig("libs");
+  const setLibs = useCallback((v) => setConfig("libs", v), [setConfig]);
 
   // Libraries panel
   const [libsOpen, setLibsOpen] = useState(false);

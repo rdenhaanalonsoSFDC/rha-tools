@@ -1,11 +1,11 @@
-import { Wrench } from "lucide-react";
+import { ChefHat } from "lucide-react";
 import { TOOLS } from "../../tools/registry";
 
 export default function Sidebar({ activeTool, onSelectTool }) {
   return (
     <aside className="flex w-64 flex-col border-r border-slate-800 bg-slate-900">
       <div className="flex items-center gap-2 border-b border-slate-800 px-5 py-4">
-        <Wrench className="h-5 w-5 text-indigo-400" />
+        <ChefHat className="h-5 w-5 text-indigo-400" />
         <h1 className="text-lg font-semibold text-slate-100">RHA Tools</h1>
       </div>
 

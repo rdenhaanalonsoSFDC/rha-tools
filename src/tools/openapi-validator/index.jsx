@@ -11,7 +11,8 @@ import {
   FileCode,
   Braces,
 } from "lucide-react";
-import { usePersistedState } from "../../hooks/use-persisted-state";
+import { useFileState } from "../../hooks/use-file-state";
+import { useConfigState } from "../../hooks/use-config-state";
 
 const SAMPLE_SPEC = `openapi: "3.0.3"
 info:
@@ -80,11 +81,19 @@ const monacoThemeConfig = {
   },
 };
 
+const SLUG = "openapi-validator";
+const CONFIG_DEFAULTS = { schema: "", strict: false };
+
 export default function OpenApiValidator() {
-  const [specYaml, setSpecYaml] = usePersistedState("openapi-spec", SAMPLE_SPEC);
-  const [payload, setPayload] = usePersistedState("openapi-payload", SAMPLE_PAYLOAD);
-  const [selectedSchema, setSelectedSchema] = usePersistedState("openapi-schema", "");
-  const [strictMode, setStrictMode] = usePersistedState("openapi-strict", "false");
+  const [specYaml, setSpecYaml] = useFileState(SLUG, "spec.yaml", SAMPLE_SPEC);
+  const [payload, setPayload] = useFileState(SLUG, "payload.json", SAMPLE_PAYLOAD);
+  const [getConfig, setConfig] = useConfigState(SLUG, CONFIG_DEFAULTS);
+
+  const selectedSchema = getConfig("schema");
+  const strictMode = getConfig("strict");
+
+  const setSelectedSchema = useCallback((v) => setConfig("schema", v), [setConfig]);
+  const setStrictMode = useCallback((v) => setConfig("strict", v), [setConfig]);
   const [specErrors, setSpecErrors] = useState([]);
   const [payloadErrors, setPayloadErrors] = useState([]);
   const [specValid, setSpecValid] = useState(null);
@@ -215,7 +224,7 @@ export default function OpenApiValidator() {
       if (detectedVersion?.family === "3.0") {
         resolvedSchema = normalizeNullable(resolvedSchema);
       }
-      if (strictMode === "true") {
+      if (strictMode) {
         resolvedSchema = applyStrictMode(resolvedSchema);
       }
 
@@ -281,8 +290,8 @@ export default function OpenApiValidator() {
           <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400 select-none">
             <input
               type="checkbox"
-              checked={strictMode === "true"}
-              onChange={(e) => setStrictMode(String(e.target.checked))}
+              checked={strictMode}
+              onChange={(e) => setStrictMode(e.target.checked)}
               className="accent-emerald-500"
             />
             Strict

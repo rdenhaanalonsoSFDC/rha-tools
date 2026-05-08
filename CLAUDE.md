@@ -37,15 +37,34 @@ There are no lint or test scripts configured.
 - `js-sandbox/` — Runs user JS in hidden iframes (fresh iframe per Script Run, persistent iframe for the Console REPL). Loads external libs via CDN `<script>` tags. Intercepts `console.*` methods to capture output.
 - `openapi-validator/` — Validates OpenAPI 3.0/3.1 YAML specs with `@apidevtools/swagger-parser`, then validates JSON payloads against a selected schema using AJV. Handles `$ref` resolution and 3.0→3.1 nullable normalization internally.
 
-**Shared hook:** `src/hooks/use-persisted-state.js` — Drop-in replacement for `useState` that syncs to `localStorage` with a `rha-tools-` prefix.
+**Shared hooks:**
+- `src/hooks/use-file-state.js` — `useFileState(toolSlug, filename, default)` reads/writes a single file under `<appDataDir>/<toolSlug>/`. Writes are debounced 500 ms. Returns `[value, setter, isLoaded]`.
+- `src/hooks/use-config-state.js` — `useConfigState(toolSlug, defaults)` manages `<appDataDir>/<toolSlug>/config.json` as a key/value store. Returns `[getKey, setKey, isLoaded]`.
+- `src/hooks/use-persisted-state.js` — **Deprecated** (localStorage-based). Kept for reference; no tool imports it.
+
+**Storage layout** (`~/Library/Application Support/rha-tools/` on macOS):
+```
+rha-tools/
+├── diff-viewer/
+│   ├── version-a.txt
+│   ├── version-b.txt
+│   └── config.json      # { mode, lineMode, typeA, typeB }
+├── js-sandbox/
+│   ├── script.js
+│   └── config.json      # { libs: [...] }
+└── openapi-validator/
+    ├── spec.yaml
+    ├── payload.json
+    └── config.json      # { schema, strict }
+```
 
 ## Adding a New Tool
 
 1. Create `src/tools/my-tool/index.jsx` (and any tool-specific helpers alongside it)
-2. Use `usePersistedState` (not `useState`) for all user-editable values; key pattern: `<tool-slug>-<field>`
+2. Use `useFileState` for editor/textarea contents; use `useConfigState` for toggles and selections
 3. Add one entry to `src/tools/registry.js` — `App.jsx` and `Sidebar.jsx` require no changes
 
-Do **not** persist transient UI state (validation results, loading flags, error lists, console output) — only persist editor/textarea contents and behaviour-affecting selections.
+Do **not** persist transient UI state (validation results, loading flags, error lists, console output).
 
 ## State Persistence Convention
 
