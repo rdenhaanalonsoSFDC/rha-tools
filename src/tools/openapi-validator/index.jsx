@@ -81,6 +81,19 @@ const monacoThemeConfig = {
   },
 };
 
+export const settingsConfig = {
+  title: "OpenAPI Validator",
+  fields: [
+    {
+      key: "strict",
+      type: "toggle",
+      label: "Strict mode by default",
+      description: "Rejects payload properties not defined in the schema.",
+      default: false,
+    },
+  ],
+};
+
 const SLUG = "openapi-validator";
 const CONFIG_DEFAULTS = { schema: "", strict: false };
 

@@ -102,6 +102,8 @@ const inspectRepl = (value) => {
   }
 };
 
+export const settingsConfig = null;
+
 const SLUG = "js-sandbox";
 const CONFIG_DEFAULTS = { libs: [] };
 

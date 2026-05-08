@@ -36,6 +36,33 @@ function splitIntoLines(parts) {
   return lines;
 }
 
+export const settingsConfig = {
+  title: "Diff Viewer",
+  fields: [
+    {
+      key: "mode",
+      type: "select",
+      label: "Default compare mode",
+      options: [
+        { value: "word", label: "Word" },
+        { value: "char", label: "Character" },
+        { value: "line", label: "Line" },
+      ],
+      default: "word",
+    },
+    {
+      key: "lineMode",
+      type: "select",
+      label: "Default line display",
+      options: [
+        { value: "all", label: "All lines" },
+        { value: "changed", label: "Only changed" },
+      ],
+      default: "all",
+    },
+  ],
+};
+
 const SLUG = "diff-viewer";
 const CONFIG_DEFAULTS = { mode: "word", lineMode: "all", typeA: "", typeB: "", nameA: "", nameB: "" };
 

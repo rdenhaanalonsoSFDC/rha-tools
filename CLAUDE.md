@@ -62,7 +62,22 @@ rha-tools/
 
 1. Create `src/tools/my-tool/index.jsx` (and any tool-specific helpers alongside it)
 2. Use `useFileState` for editor/textarea contents; use `useConfigState` for toggles and selections
-3. Add one entry to `src/tools/registry.js` — `App.jsx` and `Sidebar.jsx` require no changes
+3. Export a `settingsConfig` constant from `index.jsx` alongside the default component export:
+   ```js
+   export const settingsConfig = {
+     title: "My Tool",
+     fields: [
+       // { key, type: "select"|"toggle"|"text", label, default, options?, description? }
+     ],
+   };
+   ```
+   Export `null` if the tool has no configurable settings.
+4. Add one entry to `src/tools/registry.js`, importing and attaching `settingsConfig`:
+   ```js
+   import MyTool, { settingsConfig as myToolSettings } from "./my-tool";
+   { id: "my-tool", label: "My Tool", icon: SomeIcon, component: MyTool, settingsConfig: myToolSettings }
+   ```
+   `App.jsx` and `Sidebar.jsx` require no changes.
 
 Do **not** persist transient UI state (validation results, loading flags, error lists, console output).
 

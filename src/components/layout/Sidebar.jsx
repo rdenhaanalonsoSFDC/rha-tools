@@ -1,4 +1,4 @@
-import { ChefHat } from "lucide-react";
+import { ChefHat, Settings } from "lucide-react";
 import { TOOLS } from "../../tools/registry";
 
 export default function Sidebar({ activeTool, onSelectTool }) {
@@ -29,7 +29,21 @@ export default function Sidebar({ activeTool, onSelectTool }) {
         })}
       </nav>
 
-      <div className="border-t border-slate-800 px-5 py-3">
+      <div className="border-t border-slate-800 px-3 py-2">
+        <button
+          onClick={() => onSelectTool("settings")}
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+            activeTool === "settings"
+              ? "bg-indigo-500/10 text-indigo-400"
+              : "text-slate-500 hover:bg-slate-800 hover:text-slate-300"
+          }`}
+        >
+          <Settings className="h-4 w-4" />
+          Settings
+        </button>
+      </div>
+
+      <div className="px-5 py-3">
         <p className="text-xs text-slate-600">v0.1.0 &middot; Tauri + React</p>
       </div>
     </aside>
